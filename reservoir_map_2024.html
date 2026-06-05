@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Reservoir Data 2024 — Sri Lanka</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --surface2: #1c2330;
+    --border:   rgba(255,255,255,0.08);
+    --border2:  rgba(255,255,255,0.14);
+    --text:     #e6edf3;
+    --muted:    #7d8590;
+    --accent:   #1f9e75;
+    --accent2:  #378add;
+    --amber:    #d4893a;
+    --coral:    #d85a30;
+    --purple:   #7f77dd;
+    --pink:     #c4527e;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; overflow: hidden; }
+
+  /* ── HEADER ── */
+  #header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+    height: 52px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px; padding: 0 20px;
+  }
+  #header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 17px; font-weight: 600;
+    color: var(--text); letter-spacing: 0.01em; white-space: nowrap;
+  }
+  #header .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  #header .divider { width: 1px; height: 24px; background: var(--border2); flex-shrink: 0; }
+  #status-bar {
+    margin-left: auto;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; color: var(--muted); letter-spacing: 0.06em;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .status-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--muted);
+    animation: pulse 2s infinite;
+  }
+  .status-dot.ready { background: var(--accent); animation: none; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* ── MAP ── */
+  #map {
+    position: fixed;
+    top: 52px; left: 260px; right: 0; bottom: 0;
+  }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    position: fixed;
+    top: 52px; left: 0; bottom: 0; width: 260px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-section {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-section-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 10px;
+  }
+
+  /* Layer toggles */
+  .layer-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 8px; border-radius: 6px;
+    cursor: pointer; transition: background 0.15s;
+    margin-bottom: 2px;
+    user-select: none;
+  }
+  .layer-item:hover { background: rgba(255,255,255,0.05); }
+  .layer-item input[type=checkbox] { display: none; }
+  .layer-toggle {
+    width: 30px; height: 16px; border-radius: 8px;
+    background: rgba(255,255,255,0.1); border: 1px solid var(--border2);
+    position: relative; transition: background 0.2s; flex-shrink: 0;
+  }
+  .layer-toggle::after {
+    content:''; position: absolute; top: 2px; left: 2px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--muted); transition: all 0.2s;
+  }
+  .layer-item.active .layer-toggle { border-color: var(--layer-color); background: color-mix(in srgb, var(--layer-color) 25%, transparent); }
+  .layer-item.active .layer-toggle::after { background: var(--layer-color); left: 16px; }
+
+  .layer-swatch {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    background: var(--layer-color);
+  }
+  .layer-swatch.line { border-radius: 2px; width: 14px; height: 4px; }
+  .layer-swatch.poly { border-radius: 2px; width: 10px; height: 10px; opacity: 0.7; }
+
+  .layer-label { font-size: 12px; color: var(--text); flex: 1; }
+  .layer-count { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); }
+
+  /* Stats panel */
+  #stats-panel { flex: 1; overflow-y: auto; padding: 12px 16px; }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .stat-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .stat-val { font-family: 'DM Mono', monospace; font-size: 20px; font-weight: 500; color: var(--text); line-height: 1; }
+  .stat-lbl { font-size: 10px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  /* Basemap selector */
+  .bm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .bm-btn {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 10px; cursor: pointer;
+    font-size: 11px; color: var(--muted); font-family: 'IBM Plex Sans', sans-serif;
+    transition: all 0.15s; text-align: center;
+  }
+  .bm-btn:hover { color: var(--text); border-color: var(--border2); }
+  .bm-btn.active { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+  /* Popup */
+  #popup {
+    position: fixed;
+    bottom: 24px; right: 16px; z-index: 2000;
+    width: 280px;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    max-height: 320px; overflow-y: auto;
+  }
+  #popup-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  #popup-title { font-family: 'Playfair Display', serif; font-size: 14px; color: var(--text); line-height: 1.3; }
+  #popup-type { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
+  #popup-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; padding: 0; flex-shrink: 0; }
+  #popup-close:hover { color: var(--text); }
+  .popup-row { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 11px; }
+  .popup-key { color: var(--muted); font-family: 'DM Mono', monospace; font-size: 10px; }
+  .popup-val { color: var(--text); text-align: right; max-width: 160px; word-break: break-word; }
+
+  /* Leaflet overrides */
+  .leaflet-control-attribution { font-size: 9px !important; background: rgba(13,17,23,0.85) !important; color: #555 !important; }
+  .leaflet-control-attribution a { color: #666 !important; }
+  .leaflet-control-zoom a { background: var(--surface) !important; color: var(--text) !important; border-color: var(--border2) !important; }
+  .leaflet-control-zoom a:hover { background: var(--surface2) !important; }
+
+  /* Loading overlay */
+  #loading {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  }
+  #loading h2 { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--text); }
+  #loading p { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 0.08em; }
+  .progress-bar { width: 200px; height: 2px; background: var(--border2); border-radius: 1px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.4s ease; border-radius: 1px; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading">
+  <h2>Reservoir Data 2024</h2>
+  <p id="load-msg">Connecting to ArcGIS FeatureServer…</p>
+  <div class="progress-bar"><div class="progress-fill" id="prog"></div></div>
+</div>
+
+<!-- Header -->
+<div id="header">
+  <div>
+    <h1>Reservoir Data 2024</h1>
+    <div class="subtitle">Sri Lanka · Department of Irrigation · ArcGIS FeatureServer</div>
+  </div>
+  <div class="divider"></div>
+  <div id="status-bar">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">Loading layers…</span>
+  </div>
+</div>
+
+<!-- Sidebar -->
+<div id="sidebar">
+  <div class="sidebar-section">
+    <div class="sidebar-section-title">Map layers</div>
+    <div id="layer-list"></div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-title">Basemap</div>
+    <div class="bm-grid">
+      <button class="bm-btn active" onclick="setBasemap('osm',this)">OSM</button>
+      <button class="bm-btn" onclick="setBasemap('satellite',this)">Satellite</button>
+      <button class="bm-btn" onclick="setBasemap('topo',this)">Topo</button>
+      <button class="bm-btn" onclick="setBasemap('dark',this)">Dark</button>
+    </div>
+  </div>
+
+  <div id="stats-panel">
+    <div class="sidebar-section-title" style="margin-bottom:8px;">Summary</div>
+    <div class="stat-grid" id="stat-grid">
+      <div class="stat-card"><div class="stat-val" id="s-tanks">—</div><div class="stat-lbl">Tanks</div></div>
+      <div class="stat-card"><div class="stat-val" id="s-res">—</div><div class="stat-lbl">Reservoirs</div></div>
+      <div class="stat-card"><div class="stat-val" id="s-sluice">—</div><div class="stat-lbl">Sluices</div></div>
+      <div class="stat-card"><div class="stat-val" id="s-anicut">—</div><div class="stat-lbl">Anicuts</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Map -->
+<div id="map"></div>
+
+<!-- Popup -->
+<div id="popup">
+  <div id="popup-header">
+    <div>
+      <div id="popup-title">Feature</div>
+      <div id="popup-type"></div>
+    </div>
+    <button id="popup-close" onclick="document.getElementById('popup').style.display='none'">×</button>
+  </div>
+  <div id="popup-body"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const BASE = 'https://services3.arcgis.com/J7ZFXmR8rSmQ3FGf/arcgis/rest/services/Reservoir_Data_2024/FeatureServer';
+
+const LAYER_CFG = [
+  { id: 3, label: 'Tanks',          type: 'point',   color: '#1f9e75', swatchType: 'dot',  statEl: 's-tanks',  r: 6 },
+  { id: 6, label: 'Reservoirs',     type: 'polygon', color: '#378add', swatchType: 'poly', statEl: 's-res',    fillOp: 0.45 },
+  { id: 5, label: 'Irrigable area', type: 'polygon', color: '#639922', swatchType: 'poly', fillOp: 0.2 },
+  { id: 4, label: 'Bunds',          type: 'line',    color: '#d85a30', swatchType: 'line' },
+  { id: 9, label: 'River basins',   type: 'polygon', color: '#185fa5', swatchType: 'poly', fillOp: 0.05 },
+  { id: 0, label: 'Sluices',        type: 'point',   color: '#d4893a', swatchType: 'dot',  statEl: 's-sluice', r: 5 },
+  { id: 1, label: 'Spillways',      type: 'point',   color: '#c4527e', swatchType: 'dot',  r: 5 },
+  { id: 2, label: 'Anicuts',        type: 'point',   color: '#7f77dd', swatchType: 'dot',  statEl: 's-anicut', r: 5 },
+];
+
+const BASEMAPS = {
+  osm:       'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  topo:      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+  dark:      'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png'
+};
+
+const map = L.map('map', { zoomControl: true, attributionControl: true }).setView([8.0, 80.7], 7);
+let baseLayer = L.tileLayer(BASEMAPS.osm, { attribution: '© OpenStreetMap | ArcGIS FeatureServer' }).addTo(map);
+
+function setBasemap(key, btn) {
+  document.querySelectorAll('.bm-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  map.removeLayer(baseLayer);
+  baseLayer = L.tileLayer(BASEMAPS[key], { attribution: '© OpenStreetMap | ArcGIS FeatureServer' }).addTo(map);
+  baseLayer.bringToBack();
+}
+
+const leafletLayers = {};
+const layerCounts = {};
+
+function showPopup(props, layerLabel) {
+  const el = document.getElementById('popup');
+  const nameKeys = ['TankName','Name','TANKNAME','name','NAME','ReservoirName','BasinName','DivisionName','RangeName'];
+  const title = nameKeys.map(k => props[k]).find(Boolean) || layerLabel;
+  document.getElementById('popup-title').textContent = title;
+  document.getElementById('popup-type').textContent = layerLabel;
+  const skip = new Set(['OBJECTID','Shape__Area','Shape__Length','GlobalID','FID','objectid','shape_area','shape_length']);
+  const rows = Object.entries(props)
+    .filter(([k,v]) => !skip.has(k) && v !== null && v !== '' && v !== undefined)
+    .slice(0,14)
+    .map(([k,v]) => `<div class="popup-row"><span class="popup-key">${k}</span><span class="popup-val">${v}</span></div>`)
+    .join('');
+  document.getElementById('popup-body').innerHTML = rows || '<div style="font-size:12px;color:var(--muted);padding:4px 0;">No attributes available.</div>';
+  el.style.display = 'block';
+}
+
+function buildLayerUI() {
+  const list = document.getElementById('layer-list');
+  LAYER_CFG.forEach(cfg => {
+    const item = document.createElement('label');
+    item.className = 'layer-item active';
+    item.style.setProperty('--layer-color', cfg.color);
+    item.innerHTML = `
+      <input type="checkbox" checked>
+      <div class="layer-toggle"></div>
+      <div class="layer-swatch ${cfg.swatchType === 'line' ? 'line' : cfg.swatchType === 'poly' ? 'poly' : ''}" style="background:${cfg.color};"></div>
+      <span class="layer-label">${cfg.label}</span>
+      <span class="layer-count" id="cnt-${cfg.id}">—</span>
+    `;
+    const cb = item.querySelector('input');
+    cb.addEventListener('change', () => {
+      const ll = leafletLayers[cfg.id];
+      if (!ll) return;
+      if (cb.checked) { map.addLayer(ll); item.classList.add('active'); }
+      else { map.removeLayer(ll); item.classList.remove('active'); }
+    });
+    list.appendChild(item);
+  });
+}
+
+async function fetchLayer(cfg, onProgress) {
+  const url = `${BASE}/${cfg.id}/query?where=1%3D1&outFields=*&f=geojson&outSR=4326&resultRecordCount=2000`;
+  try {
+    const res = await fetch(url);
+    const geojson = await res.json();
+    onProgress();
+    if (!geojson.features || !geojson.features.length) return 0;
+    const count = geojson.features.length;
+
+    let ll;
+    if (cfg.type === 'point') {
+      ll = L.geoJSON(geojson, {
+        pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+          radius: cfg.r || 5, fillColor: cfg.color,
+          color: '#0d1117', weight: 1, opacity: 1, fillOpacity: 0.9
+        }),
+        onEachFeature: (f, layer) => layer.on('click', () => showPopup(f.properties, cfg.label))
+      });
+    } else if (cfg.type === 'line') {
+      ll = L.geoJSON(geojson, {
+        style: { color: cfg.color, weight: 2, opacity: 0.8 },
+        onEachFeature: (f, layer) => layer.on('click', () => showPopup(f.properties, cfg.label))
+      });
+    } else {
+      ll = L.geoJSON(geojson, {
+        style: { color: cfg.color, weight: cfg.id === 9 ? 1 : 1.2, fillColor: cfg.color, fillOpacity: cfg.fillOp ?? 0.35, opacity: 0.75 },
+        onEachFeature: (f, layer) => layer.on('click', () => showPopup(f.properties, cfg.label))
+      });
+    }
+    leafletLayers[cfg.id] = ll;
+    ll.addTo(map);
+    return count;
+  } catch(e) {
+    onProgress();
+    return 0;
+  }
+}
+
+async function init() {
+  buildLayerUI();
+  let done = 0;
+  const total = LAYER_CFG.length;
+  const msgs = ['Connecting to ArcGIS…','Fetching tank coordinates…','Loading reservoir polygons…','Pulling irrigable areas…','Mapping bunds…','Loading river basins…','Fetching sluices…','Getting spillways…','Loading anicuts…'];
+  let msgIdx = 0;
+  const loadMsg = document.getElementById('load-msg');
+  const prog = document.getElementById('prog');
+
+  const onProgress = () => {
+    done++;
+    prog.style.width = Math.round((done/total)*100)+'%';
+    if (msgIdx < msgs.length) loadMsg.textContent = msgs[msgIdx++];
+  };
+
+  const results = await Promise.all(LAYER_CFG.map(cfg => fetchLayer(cfg, onProgress)));
+
+  LAYER_CFG.forEach((cfg, i) => {
+    const cnt = results[i];
+    const el = document.getElementById(`cnt-${cfg.id}`);
+    if (el) el.textContent = cnt > 0 ? cnt.toLocaleString() : '—';
+    if (cfg.statEl) {
+      const s = document.getElementById(cfg.statEl);
+      if (s) s.textContent = cnt > 0 ? cnt.toLocaleString() : '0';
+    }
+  });
+
+  const allLayers = Object.values(leafletLayers);
+  const bounds = [];
+  allLayers.forEach(ll => { try { const b = ll.getBounds(); if (b.isValid()) bounds.push(b); } catch(e){} });
+  if (bounds.length) {
+    const merged = bounds.reduce((a,b) => a.extend(b));
+    map.fitBounds(merged, { padding: [30,30] });
+  }
+
+  const totalFeatures = results.reduce((a,b) => a+b, 0);
+  document.getElementById('status-dot').classList.add('ready');
+  document.getElementById('status-text').textContent = `${totalFeatures.toLocaleString()} features · ${LAYER_CFG.length} layers`;
+
+  document.getElementById('loading').style.opacity = '0';
+  document.getElementById('loading').style.transition = 'opacity 0.5s';
+  setTimeout(() => document.getElementById('loading').style.display = 'none', 500);
+}
+
+init();
+</script>
+</body>
+</html>
