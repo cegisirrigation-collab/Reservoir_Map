@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Reservoir Data 2024 — Sri Lanka · Auto-Tour</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --surface2: #1c2330;
+    --border:   rgba(255,255,255,0.08);
+    --border2:  rgba(255,255,255,0.14);
+    --text:     #e6edf3;
+    --muted:    #7d8590;
+    --accent:   #1f9e75;
+    --accent2:  #378add;
+    --amber:    #d4893a;
+    --coral:    #d85a30;
+    --purple:   #7f77dd;
+    --pink:     #c4527e;
+    --tour:     #f0c040;
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', sans-serif; overflow: hidden; }
+
+  /* ── HEADER ── */
+  #header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+    height: 52px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px; padding: 0 20px;
+  }
+  #header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 17px; font-weight: 600;
+    color: var(--text); letter-spacing: 0.01em; white-space: nowrap;
+  }
+  #header .subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  #header .divider { width: 1px; height: 24px; background: var(--border2); flex-shrink: 0; }
+  #status-bar {
+    margin-left: auto;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; color: var(--muted); letter-spacing: 0.06em;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .status-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--muted);
+    animation: pulse 2s infinite;
+  }
+  .status-dot.ready { background: var(--accent); animation: none; }
+  .status-dot.touring { background: var(--tour); animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* ── MAP ── */
+  #map {
+    position: fixed;
+    top: 52px; left: 280px; right: 0; bottom: 0;
+  }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    position: fixed;
+    top: 52px; left: 0; bottom: 0; width: 280px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-section {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-section-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 10px;
+  }
+
+  /* ── FILTER SECTION ── */
+  #filter-section { padding: 14px 16px 12px; border-bottom: 1px solid var(--border); }
+  #filter-section .sidebar-section-title { margin-bottom: 8px; }
+
+  .filter-row { display: flex; flex-direction: column; gap: 6px; }
+  .filter-label { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; letter-spacing: 0.06em; }
+  
+  select#div-filter {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 12px;
+    padding: 7px 10px;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%237d8590' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 28px;
+    transition: border-color 0.2s;
+  }
+  select#div-filter:focus { outline: none; border-color: var(--accent); }
+  select#div-filter option { background: var(--surface2); }
+
+  .filter-meta {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; color: var(--accent);
+    text-align: right; min-height: 14px;
+  }
+
+  /* ── AUTO-TOUR ── */
+  #tour-section { padding: 14px 16px 12px; border-bottom: 1px solid var(--border); }
+  #tour-section .sidebar-section-title { margin-bottom: 10px; }
+
+  .tour-controls { display: flex; flex-direction: column; gap: 8px; }
+
+  .tour-speed-row { display: flex; align-items: center; gap: 8px; }
+  .tour-speed-label { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; white-space: nowrap; flex-shrink: 0; }
+  input#tour-speed {
+    flex: 1; accent-color: var(--accent);
+    cursor: pointer; height: 4px;
+  }
+  #speed-val { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text); min-width: 28px; text-align: right; }
+
+  .tour-btn-row { display: flex; gap: 6px; }
+
+  .tour-btn {
+    flex: 1;
+    padding: 8px 0;
+    border-radius: 6px;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .tour-btn:hover:not(:disabled) { color: var(--text); border-color: var(--border2); background: rgba(255,255,255,0.06); }
+  .tour-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .tour-btn.start-btn:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .tour-btn.start-btn.active { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+  .tour-btn.stop-btn { border-color: var(--coral); color: var(--coral); }
+  .tour-btn.stop-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--coral) 12%, transparent); }
+
+  /* Tour progress */
+  #tour-progress-row {
+    display: flex; align-items: center; gap: 8px;
+    opacity: 0; transition: opacity 0.3s;
+  }
+  #tour-progress-row.visible { opacity: 1; }
+  #tour-prog-bar { flex: 1; height: 2px; background: var(--border2); border-radius: 1px; overflow: hidden; }
+  #tour-prog-fill { height: 100%; background: var(--tour); border-radius: 1px; transition: width 0.3s ease; }
+  #tour-counter { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); white-space: nowrap; min-width: 50px; text-align: right; }
+
+  #tour-current-name {
+    font-size: 11px; color: var(--tour);
+    font-family: 'IBM Plex Sans', sans-serif;
+    min-height: 16px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    opacity: 0; transition: opacity 0.3s;
+  }
+  #tour-current-name.visible { opacity: 1; }
+
+  /* Layer toggles */
+  .layer-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 8px; border-radius: 6px;
+    cursor: pointer; transition: background 0.15s;
+    margin-bottom: 2px;
+    user-select: none;
+  }
+  .layer-item:hover { background: rgba(255,255,255,0.05); }
+  .layer-item input[type=checkbox] { display: none; }
+  .layer-toggle {
+    width: 30px; height: 16px; border-radius: 8px;
+    background: rgba(255,255,255,0.1); border: 1px solid var(--border2);
+    position: relative; transition: background 0.2s; flex-shrink: 0;
+  }
+  .layer-toggle::after {
+    content:''; position: absolute; top: 2px; left: 2px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--muted); transition: all 0.2s;
+  }
+  .layer-item.active .layer-toggle { border-color: var(--layer-color); background: color-mix(in srgb, var(--layer-color) 25%, transparent); }
+  .layer-item.active .layer-toggle::after { background: var(--layer-color); left: 16px; }
+
+  .layer-swatch {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    background: var(--layer-color);
+  }
+  .layer-swatch.line { border-radius: 2px; width: 14px; height: 4px; }
+  .layer-swatch.poly { border-radius: 2px; width: 10px; height: 10px; opacity: 0.7; }
+
+  .layer-label { font-size: 12px; color: var(--text); flex: 1; }
+  .layer-count { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); }
+
+  /* Stats panel */
+  #stats-panel { flex: 1; overflow-y: auto; padding: 12px 16px; }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .stat-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .stat-val { font-family: 'DM Mono', monospace; font-size: 20px; font-weight: 500; color: var(--text); line-height: 1; }
+  .stat-lbl { font-size: 10px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  /* Basemap selector */
+  .bm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .bm-btn {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 10px; cursor: pointer;
+    font-size: 11px; color: var(--muted); font-family: 'IBM Plex Sans', sans-serif;
+    transition: all 0.15s; text-align: center;
+  }
+  .bm-btn:hover { color: var(--text); border-color: var(--border2); }
+  .bm-btn.active { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+  /* Popup */
+  #popup {
+    position: fixed;
+    bottom: 24px; right: 16px; z-index: 2000;
+    width: 290px;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    max-height: 340px; overflow-y: auto;
+  }
+  #popup-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  #popup-title { font-family: 'Playfair Display', serif; font-size: 14px; color: var(--text); line-height: 1.3; }
+  #popup-type { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 2px; }
+  #popup-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; padding: 0; flex-shrink: 0; }
+  #popup-close:hover { color: var(--text); }
+  .popup-row { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 11px; }
+  .popup-key { color: var(--muted); font-family: 'DM Mono', monospace; font-size: 10px; }
+  .popup-val { color: var(--text); text-align: right; max-width: 165px; word-break: break-word; }
+
+  /* Tour indicator badge on popup */
+  #popup-tour-badge {
+    display: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; letter-spacing: 0.08em;
+    color: var(--tour);
+    background: color-mix(in srgb, var(--tour) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--tour) 35%, transparent);
+    border-radius: 4px; padding: 2px 7px;
+    margin-bottom: 8px;
+  }
+
+  /* Tour highlight marker pulse */
+  @keyframes markerPulse {
+    0%   { transform: scale(1);   opacity: 1; }
+    50%  { transform: scale(1.5); opacity: 0.6; }
+    100% { transform: scale(1);   opacity: 1; }
+  }
+  .tour-active-marker { animation: markerPulse 1.2s ease-in-out infinite; }
+
+  /* ── ANIMATED ICON STYLES ── */
+
+  /* Sluice: spinning gear icon */
+  .sluice-icon {
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sluice-icon svg { animation: gearSpin 3s linear infinite; transform-origin: center; }
+  @keyframes gearSpin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  /* Spillway: wave ripple icon */
+  .spill-icon {
+    width: 26px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .spill-wave-1 { animation: waveFlow 1.4s ease-in-out infinite; }
+  .spill-wave-2 { animation: waveFlow 1.4s ease-in-out infinite 0.35s; }
+  .spill-wave-3 { animation: waveFlow 1.4s ease-in-out infinite 0.7s; }
+  @keyframes waveFlow {
+    0%,100% { transform: translateX(0) scaleY(1); opacity: 0.9; }
+    50%      { transform: translateX(2px) scaleY(1.3); opacity: 1; }
+  }
+
+  /* Tour spotlight ring on map */
+  @keyframes spotRing {
+    0%   { transform: scale(0.8); opacity: 1; }
+    100% { transform: scale(2.4); opacity: 0; }
+  }
+  .tour-ring { animation: spotRing 1.8s ease-out infinite; }
+
+  /* Reservoir polygon glow overlay (applied via SVG filter on Leaflet pane) */
+  @keyframes reservoirGlow {
+    0%,100% { opacity: 0.45; }
+    50%      { opacity: 0.72; }
+  }
+  @keyframes irrigableShimmer {
+    0%   { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: -30; }
+  }
+
+  /* Division banner during tour */
+  #tour-div-banner {
+    position: fixed;
+    top: 60px; left: 50%; transform: translateX(-50%);
+    z-index: 2100;
+    background: rgba(13,17,23,0.92);
+    border: 1px solid var(--tour);
+    border-radius: 8px;
+    padding: 6px 18px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px; color: var(--tour);
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    display: none;
+    box-shadow: 0 0 18px rgba(240,192,64,0.25);
+    pointer-events: none;
+  }
+  #tour-div-banner.visible { display: block; animation: bannerFade 0.4s ease; }
+  @keyframes bannerFade {
+    from { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+
+  /* Leaflet overrides */
+  .leaflet-control-attribution { font-size: 9px !important; background: rgba(13,17,23,0.85) !important; color: #555 !important; }
+  .leaflet-control-attribution a { color: #666 !important; }
+  .leaflet-control-zoom a { background: var(--surface) !important; color: var(--text) !important; border-color: var(--border2) !important; }
+  .leaflet-control-zoom a:hover { background: var(--surface2) !important; }
+
+  /* Loading overlay */
+  #loading {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  }
+  #loading h2 { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--text); }
+  #loading p { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 0.08em; }
+  .progress-bar { width: 200px; height: 2px; background: var(--border2); border-radius: 1px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.4s ease; border-radius: 1px; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading">
+  <h2>Reservoir Data 2024</h2>
+  <p id="load-msg">Connecting to ArcGIS FeatureServer…</p>
+  <div class="progress-bar"><div class="progress-fill" id="prog"></div></div>
+</div>
+
+<!-- Header -->
+<div id="header">
+  <div>
+    <h1>Reservoir Data 2024</h1>
+    <div class="subtitle">Sri Lanka · Department of Irrigation · ArcGIS FeatureServer</div>
+  </div>
+  <div class="divider"></div>
+  <div id="status-bar">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">Loading layers…</span>
+  </div>
+</div>
+
+<!-- Sidebar -->
+<div id="sidebar">
+
+  <!-- FILTER BY DIVISION -->
+  <div id="filter-section">
+    <div class="sidebar-section-title">🗂 Filter by Division</div>
+    <div class="filter-row">
+      <select id="div-filter" disabled>
+        <option value="">— All Divisions —</option>
+      </select>
+      <div class="filter-meta" id="filter-meta"></div>
+    </div>
+  </div>
+
+  <!-- AUTO-TOUR -->
+  <div id="tour-section">
+    <div class="sidebar-section-title">▶ Auto-Tour</div>
+    <div class="tour-controls">
+      <div class="tour-speed-row">
+        <span class="tour-speed-label">Interval</span>
+        <input type="range" id="tour-speed" min="2" max="20" value="5" step="1"/>
+        <span id="speed-val">5s</span>
+      </div>
+      <div class="tour-btn-row">
+        <button class="tour-btn start-btn" id="btn-tour-start" disabled>▶ Start</button>
+        <button class="tour-btn" id="btn-tour-prev" disabled title="Previous">‹</button>
+        <button class="tour-btn" id="btn-tour-next" disabled title="Next">›</button>
+        <button class="tour-btn stop-btn" id="btn-tour-stop" disabled>■ Stop</button>
+      </div>
+      <div id="tour-progress-row">
+        <div id="tour-prog-bar"><div id="tour-prog-fill" style="width:0%"></div></div>
+        <span id="tour-counter">0 / 0</span>
+      </div>
+      <div id="tour-current-name"></div>
+    </div>
+  </div>
+
+  <!-- LAYERS -->
+  <div class="sidebar-section">
+    <div class="sidebar-section-title">Map layers</div>
+    <div id="layer-list"></div>
+  </div>
+
+  <!-- BASEMAP -->
+  <div class="sidebar-section">
+    <div class="sidebar-section-title">Basemap</div>
+    <div class="bm-grid">
+      <button class="bm-btn active" onclick="setBasemap('osm',this)">OSM</button>
+      <button class="bm-btn" onclick="setBasemap('satellite',this)">Satellite</button>
+      <button class="bm-btn" onclick="setBasemap('topo',this)">Topo</button>
+      <button class="bm-btn" onclick="setBasemap('dark',this)">Dark</button>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div id="stats-panel">
+    <div class="sidebar-section-title" style="margin-bottom:8px;">Summary</div>
+    <div class="stat-grid" id="stat-grid">
+      <div class="stat-card"><div class="stat-val" id="s-tanks">—</div><div class="stat-lbl">Tanks</div></div>
+      <div class="stat-card"><div class="stat-val" id="s-res">—</div><div class="stat-lbl">Reservoirs</div></div>
+      <div class="stat-card"><div class="stat-val" id="s-sluice">—</div><div class="stat-lbl">Sluices</div></div>
+      <div class="stat-card"><div class="stat-val" id="s-anicut">—</div><div class="stat-lbl">Anicuts</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tour division banner -->
+<div id="tour-div-banner"></div>
+
+<!-- Map -->
+<div id="map"></div>
+
+<!-- Popup -->
+<div id="popup">
+  <div id="popup-tour-badge">◉ AUTO-TOUR</div>
+  <div id="popup-header">
+    <div>
+      <div id="popup-title">Feature</div>
+      <div id="popup-type"></div>
+    </div>
+    <button id="popup-close" onclick="document.getElementById('popup').style.display='none'">×</button>
+  </div>
+  <div id="popup-body"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const BASE = 'https://services3.arcgis.com/J7ZFXmR8rSmQ3FGf/arcgis/rest/services/Reservoir_Data_2024/FeatureServer';
+
+const LAYER_CFG = [
+  { id: 3, label: 'Tanks',          type: 'point',   color: '#1f9e75', swatchType: 'dot',  statEl: 's-tanks',  r: 6,  tourLayer: true },
+  { id: 6, label: 'Reservoirs',     type: 'polygon', color: '#378add', swatchType: 'poly', statEl: 's-res',    fillOp: 0.45, animated: 'reservoir' },
+  { id: 5, label: 'Irrigable area', type: 'polygon', color: '#639922', swatchType: 'poly', fillOp: 0.2,        animated: 'irrigable' },
+  { id: 4, label: 'Bunds',          type: 'line',    color: '#d85a30', swatchType: 'line' },
+  { id: 9, label: 'River basins',   type: 'polygon', color: '#185fa5', swatchType: 'poly', fillOp: 0.05 },
+  { id: 0, label: 'Sluices',        type: 'point',   color: '#d4893a', swatchType: 'dot',  statEl: 's-sluice', r: 5, animated: 'sluice' },
+  { id: 1, label: 'Spillways',      type: 'point',   color: '#c4527e', swatchType: 'dot',  r: 5, animated: 'spillway' },
+  { id: 2, label: 'Anicuts',        type: 'point',   color: '#7f77dd', swatchType: 'dot',  statEl: 's-anicut', r: 5 },
+];
+
+// Division-code candidates
+const DIV_KEYS = ['DivisionCode','DIVISIONCODE','divisioncode','Division_Code','div_code','DivCode','DIVCODE'];
+const DIV_NAME_KEYS = ['DivisionName','DIVISIONNAME','Division_Name','div_name','DivName'];
+const NAME_KEYS = ['TankName','Name','TANKNAME','name','NAME','ReservoirName','BasinName','DivisionName','RangeName'];
+
+const BASEMAPS = {
+  osm:       'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  topo:      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+  dark:      'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png'
+};
+
+const map = L.map('map', { zoomControl: true, attributionControl: true }).setView([8.0, 80.7], 7);
+let baseLayer = L.tileLayer(BASEMAPS.osm, { attribution: '© OpenStreetMap | ArcGIS FeatureServer' }).addTo(map);
+
+function setBasemap(key, btn) {
+  document.querySelectorAll('.bm-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  map.removeLayer(baseLayer);
+  baseLayer = L.tileLayer(BASEMAPS[key], { attribution: '© OpenStreetMap | ArcGIS FeatureServer' }).addTo(map);
+  baseLayer.bringToBack();
+}
+
+// ─────────────────────────────────────────
+// DATA STORE
+// ─────────────────────────────────────────
+const leafletLayers = {};
+// Raw GeoJSON features keyed by layer id
+const layerFeatures = {};
+// All tank features (for tour + filter)
+let allTankFeatures = [];
+// Filtered subset for tour
+let tourFeatures = [];
+
+// ─────────────────────────────────────────
+// POPUP
+// ─────────────────────────────────────────
+function showPopup(props, layerLabel, isTour = false) {
+  const el = document.getElementById('popup');
+  const title = NAME_KEYS.map(k => props[k]).find(Boolean) || layerLabel;
+  document.getElementById('popup-title').textContent = title;
+  document.getElementById('popup-type').textContent = layerLabel;
+  document.getElementById('popup-tour-badge').style.display = isTour ? 'block' : 'none';
+  const skip = new Set(['OBJECTID','Shape__Area','Shape__Length','GlobalID','FID','objectid','shape_area','shape_length']);
+  const rows = Object.entries(props)
+    .filter(([k,v]) => !skip.has(k) && v !== null && v !== '' && v !== undefined)
+    .slice(0,16)
+    .map(([k,v]) => `<div class="popup-row"><span class="popup-key">${k}</span><span class="popup-val">${v}</span></div>`)
+    .join('');
+  document.getElementById('popup-body').innerHTML = rows || '<div style="font-size:12px;color:var(--muted);padding:4px 0;">No attributes available.</div>';
+  el.style.display = 'block';
+}
+
+// ─────────────────────────────────────────
+// DIVISION FILTER
+// ─────────────────────────────────────────
+function getDivCode(props) {
+  for (const k of DIV_KEYS) { if (props[k] !== undefined && props[k] !== null && props[k] !== '') return String(props[k]).trim(); }
+  return null;
+}
+function getDivName(props) {
+  for (const k of DIV_NAME_KEYS) { if (props[k] !== undefined && props[k] !== null && props[k] !== '') return String(props[k]).trim(); }
+  return null;
+}
+
+function buildDivisionDropdown(features) {
+  const divMap = new Map(); // code → name
+  features.forEach(f => {
+    const code = getDivCode(f.properties);
+    if (!code) return;
+    const name = getDivName(f.properties);
+    if (!divMap.has(code)) divMap.set(code, name || code);
+  });
+
+  const sel = document.getElementById('div-filter');
+  sel.innerHTML = '<option value="">— All Divisions —</option>';
+
+  if (divMap.size === 0) {
+    // Fallback: try to extract from any string field containing "Division"
+    features.forEach(f => {
+      const p = f.properties;
+      Object.entries(p).forEach(([k, v]) => {
+        if (k.toLowerCase().includes('division') && v && !divMap.has(String(v).trim())) {
+          divMap.set(String(v).trim(), String(v).trim());
+        }
+      });
+    });
+  }
+
+  // Sort by code
+  const sorted = [...divMap.entries()].sort((a,b) => a[0].localeCompare(b[0], undefined, {numeric:true}));
+  sorted.forEach(([code, name]) => {
+    const opt = document.createElement('option');
+    opt.value = code;
+    opt.textContent = name !== code ? `${code} — ${name}` : code;
+    sel.appendChild(opt);
+  });
+
+  sel.disabled = sorted.length === 0;
+  updateFilterMeta(features.length, sorted.length);
+  return divMap;
+}
+
+function updateFilterMeta(count, divCount) {
+  const m = document.getElementById('filter-meta');
+  m.textContent = divCount > 0
+    ? `${count.toLocaleString()} tanks · ${divCount} divisions`
+    : 'No division field detected';
+}
+
+let activeDivCode = '';
+
+document.getElementById('div-filter').addEventListener('change', function() {
+  activeDivCode = this.value;
+  applyDivisionFilter();
+});
+
+function applyDivisionFilter() {
+  // Stop tour if running
+  if (tourRunning) stopTour();
+
+  // Filter tank features
+  const filtered = activeDivCode
+    ? allTankFeatures.filter(f => getDivCode(f.properties) === activeDivCode)
+    : allTankFeatures;
+
+  // Rebuild the Tanks leaflet layer
+  const tankCfg = LAYER_CFG.find(c => c.id === 3);
+  if (leafletLayers[3]) map.removeLayer(leafletLayers[3]);
+  if (filtered.length > 0) {
+    const geojson = { type: 'FeatureCollection', features: filtered };
+    const ll = buildPointLayer(geojson, tankCfg);
+    leafletLayers[3] = ll;
+    ll.addTo(map);
+
+    // Fit map to filtered extent
+    try {
+      const b = ll.getBounds();
+      if (b.isValid()) map.fitBounds(b, { padding: [50, 50], maxZoom: 12 });
+    } catch(e) {}
+  }
+
+  // Update count badge
+  const cnt = document.getElementById('cnt-3');
+  if (cnt) cnt.textContent = filtered.length.toLocaleString();
+
+  // Update stat card
+  const s = document.getElementById('s-tanks');
+  if (s) s.textContent = filtered.length.toLocaleString();
+
+  // Rebuild tour with filtered features
+  tourFeatures = filtered.filter(f => {
+    const c = f.geometry && f.geometry.coordinates;
+    return c && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]);
+  });
+  refreshTourUI();
+
+  // Update filter meta
+  const meta = document.getElementById('filter-meta');
+  if (activeDivCode) {
+    meta.textContent = `${filtered.length.toLocaleString()} tanks in division ${activeDivCode}`;
+  } else {
+    meta.textContent = `${allTankFeatures.length.toLocaleString()} tanks · all divisions`;
+  }
+}
+
+// ─────────────────────────────────────────
+// ANIMATED ICON MAKERS
+// ─────────────────────────────────────────
+function makeSluiceIcon(color) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">
+    <circle cx="11" cy="11" r="9" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-width="1.4"/>
+    <circle cx="11" cy="11" r="3.2" fill="${color}" fill-opacity="0.9"/>
+    <g fill="${color}" opacity="0.92">
+      <rect x="9.8" y="2.5" width="2.4" height="4" rx="1.2"/>
+      <rect x="9.8" y="15.5" width="2.4" height="4" rx="1.2"/>
+      <rect x="2.5" y="9.8" width="4" height="2.4" rx="1.2"/>
+      <rect x="15.5" y="9.8" width="4" height="2.4" rx="1.2"/>
+      <rect x="4.5" y="4.5" width="2.4" height="4" rx="1.2" transform="rotate(45 5.7 6.5)"/>
+      <rect x="14.8" y="4.5" width="2.4" height="4" rx="1.2" transform="rotate(-45 16 6.5)"/>
+      <rect x="4.5" y="13.8" width="2.4" height="4" rx="1.2" transform="rotate(-45 5.7 15.8)"/>
+      <rect x="14.8" y="13.8" width="2.4" height="4" rx="1.2" transform="rotate(45 16 15.8)"/>
+    </g>
+  </svg>`;
+  return L.divIcon({
+    html: `<div class="sluice-icon">${svg}</div>`,
+    className: '', iconSize: [22,22], iconAnchor: [11,11]
+  });
+}
+
+function makeSpillIcon(color) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="20" viewBox="0 0 26 20">
+    <rect x="0" y="0" width="26" height="20" rx="5" fill="${color}" fill-opacity="0.15" stroke="${color}" stroke-width="1.2"/>
+    <path class="spill-wave-1" d="M3 10 Q6 7 9 10 Q12 13 15 10" stroke="${color}" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path class="spill-wave-2" d="M9 10 Q12 7 15 10 Q18 13 21 10" stroke="${color}" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.7"/>
+    <path class="spill-wave-3" d="M5 14 Q9 11 13 14 Q17 17 21 14" stroke="${color}" stroke-width="1.4" fill="none" stroke-linecap="round" opacity="0.5"/>
+    <path d="M8 6 L13 3 L18 6" stroke="${color}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+  return L.divIcon({
+    html: `<div class="spill-icon">${svg}</div>`,
+    className: '', iconSize: [26,20], iconAnchor: [13,10]
+  });
+}
+
+// ─────────────────────────────────────────
+// LAYER BUILDERS
+// ─────────────────────────────────────────
+function buildPointLayer(geojson, cfg) {
+  if (cfg.animated === 'sluice') {
+    return L.geoJSON(geojson, {
+      pointToLayer: (f, latlng) => L.marker(latlng, { icon: makeSluiceIcon(cfg.color) }),
+      onEachFeature: (f, layer) => layer.on('click', () => showPopup(f.properties, cfg.label))
+    });
+  }
+  if (cfg.animated === 'spillway') {
+    return L.geoJSON(geojson, {
+      pointToLayer: (f, latlng) => L.marker(latlng, { icon: makeSpillIcon(cfg.color) }),
+      onEachFeature: (f, layer) => layer.on('click', () => showPopup(f.properties, cfg.label))
+    });
+  }
+  return L.geoJSON(geojson, {
+    pointToLayer: (f, latlng) => L.circleMarker(latlng, {
+      radius: cfg.r || 5, fillColor: cfg.color,
+      color: '#0d1117', weight: 1, opacity: 1, fillOpacity: 0.9
+    }),
+    onEachFeature: (f, layer) => layer.on('click', () => showPopup(f.properties, cfg.label))
+  });
+}
+
+// ─────────────────────────────────────────
+// POLYGON ANIMATIONS
+// ─────────────────────────────────────────
+let irrigableDashOffset = 0;
+let irrigableAnimFrame = null;
+function animateIrrigableDash() {
+  if (irrigableAnimFrame) cancelAnimationFrame(irrigableAnimFrame);
+  function step() {
+    irrigableDashOffset -= 0.35;
+    // Target all irrigable-area SVG paths by fill color approximation
+    document.querySelectorAll('.leaflet-interactive').forEach(p => {
+      const fill = p.getAttribute('fill') || '';
+      if (fill.toLowerCase() === '#639922' || fill.toLowerCase() === '#639922') {
+        p.setAttribute('stroke-dashoffset', irrigableDashOffset);
+      }
+    });
+    irrigableAnimFrame = requestAnimationFrame(step);
+  }
+  step();
+}
+
+// Reservoir glow animation via SVG fill-opacity animation
+let reservoirGlowPhase = 0;
+let reservoirAnimFrame = null;
+function animateReservoirGlow() {
+  if (reservoirAnimFrame) cancelAnimationFrame(reservoirAnimFrame);
+  function step() {
+    reservoirGlowPhase += 0.018;
+    const op = 0.38 + 0.32 * Math.abs(Math.sin(reservoirGlowPhase));
+    document.querySelectorAll('.leaflet-interactive').forEach(p => {
+      const fill = p.getAttribute('fill') || '';
+      if (fill.toLowerCase() === '#378add') {
+        p.setAttribute('fill-opacity', op.toFixed(3));
+      }
+    });
+    reservoirAnimFrame = requestAnimationFrame(step);
+  }
+  step();
+}
+
+// ─────────────────────────────────────────
+// AUTO-TOUR ENGINE
+// ─────────────────────────────────────────
+let tourRunning = false;
+let tourIndex = 0;
+let tourTimer = null;
+let tourMarker = null; // highlight marker
+let tourInterval = 5000;
+
+const btnStart = document.getElementById('btn-tour-start');
+const btnStop  = document.getElementById('btn-tour-stop');
+const btnPrev  = document.getElementById('btn-tour-prev');
+const btnNext  = document.getElementById('btn-tour-next');
+const progRow  = document.getElementById('tour-progress-row');
+const progFill = document.getElementById('tour-prog-fill');
+const counter  = document.getElementById('tour-counter');
+const curName  = document.getElementById('tour-current-name');
+
+// Speed slider
+document.getElementById('tour-speed').addEventListener('input', function() {
+  const v = parseInt(this.value);
+  document.getElementById('speed-val').textContent = v + 's';
+  tourInterval = v * 1000;
+  if (tourRunning) { clearTimeout(tourTimer); scheduleTourStep(); }
+});
+
+function refreshTourUI() {
+  const ready = tourFeatures.length > 0;
+  btnStart.disabled = !ready;
+  btnPrev.disabled  = !ready;
+  btnNext.disabled  = !ready;
+  counter.textContent = ready ? `0 / ${tourFeatures.length}` : '0 / 0';
+}
+
+function startTour() {
+  if (tourFeatures.length === 0) return;
+  // Sort tour features by division code (numeric-aware), then by name
+  tourFeatures = [...tourFeatures].sort((a, b) => {
+    const ca = getDivCode(a.properties) || '~';
+    const cb = getDivCode(b.properties) || '~';
+    const cmp = ca.localeCompare(cb, undefined, { numeric: true, sensitivity: 'base' });
+    if (cmp !== 0) return cmp;
+    const na = NAME_KEYS.map(k => a.properties[k]).find(Boolean) || '';
+    const nb = NAME_KEYS.map(k => b.properties[k]).find(Boolean) || '';
+    return na.localeCompare(nb);
+  });
+  tourRunning = true;
+  tourIndex = 0;
+  btnStart.classList.add('active');
+  btnStop.disabled = false;
+  btnStart.disabled = true;
+  progRow.classList.add('visible');
+  curName.classList.add('visible');
+  document.getElementById('status-dot').className = 'status-dot touring';
+  document.getElementById('status-text').textContent = 'Auto-Tour running…';
+  visitCurrent();
+}
+
+function stopTour() {
+  tourRunning = false;
+  clearTimeout(tourTimer);
+  removeTourMarker();
+  document.getElementById('tour-div-banner').className = '';
+  btnStart.classList.remove('active');
+  btnStart.disabled = tourFeatures.length === 0;
+  btnStop.disabled = true;
+  progRow.classList.remove('visible');
+  curName.classList.remove('visible');
+  document.getElementById('popup-tour-badge').style.display = 'none';
+  document.getElementById('status-dot').className = 'status-dot ready';
+  const total = document.getElementById('status-text').textContent;
+  document.getElementById('status-text').textContent = total.includes('Tour') ? `${allTankFeatures.length.toLocaleString()} features · ${LAYER_CFG.length} layers` : total;
+}
+
+function removeTourMarker() {
+  if (tourMarker) { map.removeLayer(tourMarker); tourMarker = null; }
+}
+
+function visitCurrent() {
+  if (!tourRunning || tourFeatures.length === 0) return;
+  const f = tourFeatures[tourIndex];
+  const [lng, lat] = f.geometry.coordinates;
+  const props = f.properties;
+
+  // Fly to feature
+  map.flyTo([lat, lng], 13, { duration: 1.2, easeLinearity: 0.4 });
+
+  // Highlight marker — two-ring animated pulse
+  removeTourMarker();
+  const ringIcon = L.divIcon({
+    html: `<div style="position:relative;width:36px;height:36px;">
+      <div style="position:absolute;inset:0;border:2.5px solid #f0c040;border-radius:50%;animation:spotRing 1.8s ease-out infinite;"></div>
+      <div style="position:absolute;inset:0;border:2px solid #f0c040;border-radius:50%;animation:spotRing 1.8s ease-out infinite 0.6s;opacity:0.6;"></div>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:9px;height:9px;background:#f0c040;border-radius:50%;box-shadow:0 0 8px #f0c040;"></div>
+    </div>`,
+    className: '', iconSize: [36,36], iconAnchor: [18,18]
+  });
+  tourMarker = L.marker([lat, lng], { icon: ringIcon, zIndexOffset: 1000 }).addTo(map);
+
+  // Division banner
+  const divCode = getDivCode(props);
+  const divName = getDivName(props);
+  const banner = document.getElementById('tour-div-banner');
+  if (divCode) {
+    banner.textContent = `DIVISION ${divCode}${divName && divName !== divCode ? ' · ' + divName : ''}`;
+    banner.className = 'visible';
+    clearTimeout(banner._hideTimer);
+    banner._hideTimer = setTimeout(() => { banner.className = ''; }, tourInterval - 400);
+  } else {
+    banner.className = '';
+  }
+
+  // Show popup
+  showPopup(props, 'Tanks — Tour', true);
+
+  // Progress
+  const pct = Math.round(((tourIndex + 1) / tourFeatures.length) * 100);
+  progFill.style.width = pct + '%';
+  counter.textContent = `${tourIndex + 1} / ${tourFeatures.length}`;
+  curName.textContent = NAME_KEYS.map(k => props[k]).find(Boolean) || '—';
+
+  scheduleTourStep();
+}
+
+function scheduleTourStep() {
+  clearTimeout(tourTimer);
+  tourTimer = setTimeout(() => {
+    if (!tourRunning) return;
+    tourIndex = (tourIndex + 1) % tourFeatures.length;
+    visitCurrent();
+  }, tourInterval);
+}
+
+function manualStep(dir) {
+  if (tourFeatures.length === 0) return;
+  clearTimeout(tourTimer);
+  tourIndex = (tourIndex + dir + tourFeatures.length) % tourFeatures.length;
+  const f = tourFeatures[tourIndex];
+  const [lng, lat] = f.geometry.coordinates;
+  const props = f.properties;
+  map.flyTo([lat, lng], 13, { duration: 1.0 });
+  removeTourMarker();
+  tourMarker = L.circleMarker([lat, lng], {
+    radius: 14, fillColor: 'transparent',
+    color: '#f0c040', weight: 2.5, opacity: 1
+  }).addTo(map);
+  showPopup(props, 'Tanks', false);
+  const pct = Math.round(((tourIndex + 1) / tourFeatures.length) * 100);
+  progFill.style.width = pct + '%';
+  counter.textContent = `${tourIndex + 1} / ${tourFeatures.length}`;
+  curName.textContent = NAME_KEYS.map(k => props[k]).find(Boolean) || '—';
+  if (tourRunning) scheduleTourStep();
+}
+
+btnStart.addEventListener('click', startTour);
+btnStop.addEventListener('click', stopTour);
+btnPrev.addEventListener('click', () => manualStep(-1));
+btnNext.addEventListener('click', () => manualStep(1));
+
+// ─────────────────────────────────────────
+// LAYER TOGGLE UI
+// ─────────────────────────────────────────
+function buildLayerUI() {
+  const list = document.getElementById('layer-list');
+  LAYER_CFG.forEach(cfg => {
+    const item = document.createElement('label');
+    item.className = 'layer-item active';
+    item.style.setProperty('--layer-color', cfg.color);
+    item.innerHTML = `
+      <input type="checkbox" checked>
+      <div class="layer-toggle"></div>
+      <div class="layer-swatch ${cfg.swatchType === 'line' ? 'line' : cfg.swatchType === 'poly' ? 'poly' : ''}" style="background:${cfg.color};"></div>
+      <span class="layer-label">${cfg.label}</span>
+      <span class="layer-count" id="cnt-${cfg.id}">—</span>
+    `;
+    const cb = item.querySelector('input');
+    cb.addEventListener('change', () => {
+      const ll = leafletLayers[cfg.id];
+      if (!ll) return;
+      if (cb.checked) { map.addLayer(ll); item.classList.add('active'); }
+      else { map.removeLayer(ll); item.classList.remove('active'); }
+    });
+    list.appendChild(item);
+  });
+}
+
+// ─────────────────────────────────────────
+// FETCH LAYER
+// ─────────────────────────────────────────
+async function fetchLayer(cfg, onProgress) {
+  const url = `${BASE}/${cfg.id}/query?where=1%3D1&outFields=*&f=geojson&outSR=4326&resultRecordCount=2000`;
+  try {
+    const res = await fetch(url);
+    const geojson = await res.json();
+    onProgress();
+    if (!geojson.features || !geojson.features.length) return 0;
+    const count = geojson.features.length;
+
+    // Save raw features
+    layerFeatures[cfg.id] = geojson.features;
+
+    // For Tanks layer — save separately for filter + tour
+    if (cfg.id === 3) {
+      allTankFeatures = geojson.features;
+      tourFeatures = geojson.features.filter(f => {
+        const c = f.geometry && f.geometry.coordinates;
+        return c && c.length === 2 && !isNaN(c[0]) && !isNaN(c[1]);
+      });
+    }
+
+    let ll;
+    if (cfg.type === 'point') {
+      ll = buildPointLayer(geojson, cfg);
+    } else if (cfg.type === 'line') {
+      ll = L.geoJSON(geojson, {
+        style: { color: cfg.color, weight: 2, opacity: 0.8 },
+        onEachFeature: (f, layer) => layer.on('click', () => showPopup(f.properties, cfg.label))
+      });
+    } else {
+      if (cfg.animated === 'reservoir') {
+        // Animated glowing reservoir polygon
+        ll = L.geoJSON(geojson, {
+          style: { color: cfg.color, weight: 1.8, fillColor: cfg.color, fillOpacity: 0.45, opacity: 0.9 },
+          onEachFeature: (f, layer) => {
+            layer.on('click', () => showPopup(f.properties, cfg.label));
+            layer.on('add', () => {
+              const el = layer.getElement ? layer.getElement() : null;
+              if (el) el.style.animation = 'reservoirGlow 3s ease-in-out infinite';
+            });
+          }
+        });
+        ll.on('add', () => {
+          setTimeout(() => {
+            document.querySelectorAll('.leaflet-interactive').forEach(p => {
+              if (p.getAttribute('fill') === cfg.color || p.getAttribute('stroke') === cfg.color) {
+                p.style.animation = 'reservoirGlow 3s ease-in-out infinite';
+              }
+            });
+          }, 200);
+        });
+      } else if (cfg.animated === 'irrigable') {
+        // Animated dashed-border irrigable area polygon
+        ll = L.geoJSON(geojson, {
+          style: {
+            color: cfg.color, weight: 2.2,
+            fillColor: cfg.color, fillOpacity: 0.18, opacity: 0.85,
+            dashArray: '8,5', dashOffset: '0'
+          },
+          onEachFeature: (f, layer) => layer.on('click', () => showPopup(f.properties, cfg.label))
+        });
+        ll.on('add', () => {
+          setTimeout(() => animateIrrigableDash(), 300);
+        });
+      } else {
+        ll = L.geoJSON(geojson, {
+          style: { color: cfg.color, weight: cfg.id === 9 ? 1 : 1.2, fillColor: cfg.color, fillOpacity: cfg.fillOp ?? 0.35, opacity: 0.75 },
+          onEachFeature: (f, layer) => layer.on('click', () => showPopup(f.properties, cfg.label))
+        });
+      }
+    }
+    leafletLayers[cfg.id] = ll;
+    ll.addTo(map);
+    return count;
+  } catch(e) {
+    onProgress();
+    return 0;
+  }
+}
+
+// ─────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────
+async function init() {
+  buildLayerUI();
+  let done = 0;
+  const total = LAYER_CFG.length;
+  const msgs = ['Connecting to ArcGIS…','Fetching tank coordinates…','Loading reservoir polygons…','Pulling irrigable areas…','Mapping bunds…','Loading river basins…','Fetching sluices…','Getting spillways…','Loading anicuts…'];
+  let msgIdx = 0;
+  const loadMsg = document.getElementById('load-msg');
+  const prog = document.getElementById('prog');
+
+  const onProgress = () => {
+    done++;
+    prog.style.width = Math.round((done/total)*100)+'%';
+    if (msgIdx < msgs.length) loadMsg.textContent = msgs[msgIdx++];
+  };
+
+  const results = await Promise.all(LAYER_CFG.map(cfg => fetchLayer(cfg, onProgress)));
+
+  LAYER_CFG.forEach((cfg, i) => {
+    const cnt = results[i];
+    const el = document.getElementById(`cnt-${cfg.id}`);
+    if (el) el.textContent = cnt > 0 ? cnt.toLocaleString() : '—';
+    if (cfg.statEl) {
+      const s = document.getElementById(cfg.statEl);
+      if (s) s.textContent = cnt > 0 ? cnt.toLocaleString() : '0';
+    }
+  });
+
+  // Build division dropdown from tank features
+  buildDivisionDropdown(allTankFeatures);
+
+  // Enable tour if tanks available
+  refreshTourUI();
+
+  // Fit bounds
+  const allLayers = Object.values(leafletLayers);
+  const bounds = [];
+  allLayers.forEach(ll => { try { const b = ll.getBounds(); if (b.isValid()) bounds.push(b); } catch(e){} });
+  if (bounds.length) {
+    const merged = bounds.reduce((a,b) => a.extend(b));
+    map.fitBounds(merged, { padding: [30,30] });
+  }
+
+  const totalFeatures = results.reduce((a,b) => a+b, 0);
+  document.getElementById('status-dot').className = 'status-dot ready';
+  document.getElementById('status-text').textContent = `${totalFeatures.toLocaleString()} features · ${LAYER_CFG.length} layers`;
+
+  document.getElementById('loading').style.opacity = '0';
+  document.getElementById('loading').style.transition = 'opacity 0.5s';
+  setTimeout(() => {
+    document.getElementById('loading').style.display = 'none';
+    // Start polygon animations
+    animateReservoirGlow();
+    animateIrrigableDash();
+    // Auto-start tour after a short settle delay
+    setTimeout(() => {
+      if (tourFeatures.length > 0) startTour();
+    }, 1800);
+  }, 500);
+}
+
+init();
+</script>
+</body>
+</html>
