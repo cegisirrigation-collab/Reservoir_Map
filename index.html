@@ -561,8 +561,8 @@
     <div class="tour-controls">
       <div class="tour-speed-row">
         <span class="tour-speed-label">Interval</span>
-        <input type="range" id="tour-speed" min="2" max="20" value="5" step="1"/>
-        <span id="speed-val">5s</span>
+        <input type="range" id="tour-speed" min="2" max="30" value="8" step="1"/>
+        <span id="speed-val">8s</span>
       </div>
       <div class="tour-btn-row">
         <button class="tour-btn start-btn" id="btn-tour-start" disabled>▶ Start</button>
@@ -801,7 +801,20 @@ function animateReservoirGlow() {
 // ─────────────────────────────────────────
 // AUTO TOUR IMPLEMENTATION
 // ─────────────────────────────────────────
-let tourRunning = false, tourIndex = 0, tourTimer = null, tourInterval = 5000;
+let tourRunning = false, tourIndex = 0, tourTimer = null, tourInterval = 8000;
+
+// ── VIDEO WALL: WAKE LOCK (prevents screen sleep) ──
+let wakeLock = null;
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { setTimeout(requestWakeLock, 2000); });
+    }
+  } catch(e) { /* silently fail if not supported */ }
+}
+requestWakeLock();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') requestWakeLock(); });
 const btnStart = document.getElementById('btn-tour-start'), btnStop = document.getElementById('btn-tour-stop');
 const btnPrev = document.getElementById('btn-tour-prev'), btnNext = document.getElementById('btn-tour-next');
 const progRow = document.getElementById('tour-progress-row'), progFill = document.getElementById('tour-prog-fill');
@@ -837,6 +850,9 @@ function stopTour() {
   btnStart.classList.remove('active'); btnStart.disabled = tourFeatures.length === 0; btnStop.disabled = true;
   progRow.classList.remove('visible'); curName.classList.remove('visible');
   document.getElementById('status-dot').className = 'status-dot ready';
+  // VIDEO WALL: auto-restart tour after 5s if no user interaction
+  clearTimeout(stopTour._restartTimer);
+  stopTour._restartTimer = setTimeout(() => { if (!tourRunning && tourFeatures.length > 0) startTour(); }, 5000);
 }
 
 function getGeomBounds(geom) {
@@ -901,7 +917,12 @@ function manualStep(dir) {
 }
 
 function scheduleTourStep() {
-  clearTimeout(tourTimer); tourTimer = setTimeout(() => { if (tourRunning) { tourIndex = (tourIndex + 1) % tourFeatures.length; visitCurrent(); } }, tourInterval);
+  clearTimeout(tourTimer); tourTimer = setTimeout(() => {
+    if (tourRunning) {
+      tourIndex = (tourIndex + 1) % tourFeatures.length;
+      visitCurrent();
+    }
+  }, tourInterval);
 }
 
 btnStart.addEventListener('click', startTour); btnStop.addEventListener('click', stopTour);
@@ -963,11 +984,12 @@ async function init() {
   document.getElementById('status-dot').className = 'status-dot ready';
   document.getElementById('status-text').textContent = `${results.reduce((a,b)=>a+b,0).toLocaleString()} node attributes active`;
   document.getElementById('loading').style.opacity = '0';
-  setTimeout(() => {
-    document.getElementById('loading').style.display = 'none';
-    animateReservoirGlow(); animateIrrigableDash(); renderReservoirLabels();
-    setTimeout(() => { if (allReservoirFeatures.length) startTour(); }, 1500);
-  }, 500);
+  await new Promise(res => setTimeout(res, 500));
+  document.getElementById('loading').style.display = 'none';
+  animateReservoirGlow(); animateIrrigableDash(); renderReservoirLabels();
+  // VIDEO WALL: auto-start tour after data loads (no click required)
+  await new Promise(res => setTimeout(res, 1500));
+  if (!tourRunning && (allReservoirFeatures.length || allTankFeatures.length)) startTour();
 }
 
 // ── SIDEBAR TOGGLE (mobile) ──
@@ -990,8 +1012,44 @@ window.addEventListener('resize', function() {
   }
 });
 
+// VIDEO WALL: Hide cursor after 3s inactivity
+let cursorTimer;
+function resetCursorTimer() {
+  document.body.style.cursor = 'default';
+  clearTimeout(cursorTimer);
+  cursorTimer = setTimeout(() => { document.body.style.cursor = 'none'; }, 3000);
+}
+document.addEventListener('mousemove', resetCursorTimer);
+resetCursorTimer();
+
+// VIDEO WALL: Periodic no-sleep ping (keeps browser from throttling timers)
+setInterval(() => {
+  const el = document.getElementById('status-text');
+  if (el) el.dataset.ping = Date.now();
+}, 10000);
+
 map.on('zoomend moveend', () => { renderReservoirLabels(); });
-init();
+
+// VIDEO WALL: Auto-reload page every 6 hours to fetch fresh ArcGIS data
+setTimeout(() => { location.reload(); }, 6 * 60 * 60 * 1000);
+
+// VIDEO WALL: If init fails to load any features, retry after 30s
+function initWithRetry() {
+  init().then(() => {
+    if (allReservoirFeatures.length === 0 && allTankFeatures.length === 0) {
+      document.getElementById('load-msg').textContent = 'No features loaded — retrying in 30s…';
+      document.getElementById('loading').style.display = 'flex';
+      document.getElementById('loading').style.opacity = '1';
+      setTimeout(initWithRetry, 30000);
+    }
+  }).catch(() => {
+    document.getElementById('load-msg').textContent = 'Connection error — retrying in 30s…';
+    document.getElementById('loading').style.display = 'flex';
+    document.getElementById('loading').style.opacity = '1';
+    setTimeout(initWithRetry, 30000);
+  });
+}
+initWithRetry();
 </script>
 </body>
 </html>
