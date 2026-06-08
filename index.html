@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="night">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -11,7 +11,10 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  :root {
+  /* ══════════════════════════════════════════════
+     NIGHT MODE (default — dark cyber / LED wall)
+  ══════════════════════════════════════════════ */
+  :root, [data-theme="night"] {
     --bg:        #05080e;
     --panel:     #080d16;
     --surface:   #0b1220;
@@ -33,6 +36,71 @@
     --glow:      rgba(0,200,255,0.18);
     --sidebar-width: clamp(180px, 22vw, 280px);
   }
+
+  /* ══════════════════════════════════════════════
+     DAY MODE (06:00–18:00 — OSM / light theme)
+  ══════════════════════════════════════════════ */
+  [data-theme="day"] {
+    --bg:        #eef3f8;
+    --panel:     #f8fafc;
+    --surface:   #ffffff;
+    --surface2:  #e8f0f8;
+    --surface3:  #dde8f2;
+    --border:    rgba(0,80,160,0.10);
+    --border2:   rgba(0,80,160,0.20);
+    --border3:   rgba(0,80,160,0.38);
+    --text:      #0d2240;
+    --muted:     #5a7a9a;
+    --accent:    #0070c0;
+    --accent2:   #00a060;
+    --warn:      #b05800;
+    --danger:    #c02020;
+    --purple:    #6030b0;
+    --tour:      #a06000;
+    --grid-line: rgba(0,80,160,0.05);
+    --gauge-bg:  #e0ebf5;
+    --glow:      rgba(0,100,200,0.12);
+    --sidebar-width: clamp(180px, 22vw, 280px);
+  }
+
+  /* Day-mode component overrides */
+  [data-theme="day"] body::before { display: none; }
+  [data-theme="day"] #header {
+    background: linear-gradient(90deg, #ddeeff 0%, #eaf3ff 50%, #ddeeff 100%);
+    border-bottom: 1px solid var(--border3);
+    box-shadow: 0 2px 12px rgba(0,80,160,0.12);
+  }
+  [data-theme="day"] #header h1 { text-shadow: 0 0 12px rgba(0,100,220,0.4); }
+  [data-theme="day"] #sidebar {
+    background: linear-gradient(180deg, #f0f6ff 0%, #e8f0f8 100%);
+    box-shadow: -4px 0 24px rgba(0,0,0,0.08);
+  }
+  [data-theme="day"] #sidebar::before { opacity: 0.4; }
+  [data-theme="day"] .bm-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0,112,192,0.10);
+    box-shadow: 0 0 8px rgba(0,112,192,0.15);
+  }
+  [data-theme="day"] #popup {
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+  [data-theme="day"] #loading { background: var(--bg); }
+  [data-theme="day"] .leaflet-container { background: #d8e8f0 !important; }
+  [data-theme="day"] .leaflet-control-attribution {
+    background: rgba(240,248,255,0.95) !important;
+    color: #4a6a8a !important;
+  }
+  [data-theme="day"] .leaflet-control-zoom a {
+    background: var(--surface) !important;
+    color: var(--accent) !important;
+    border-color: var(--border3) !important;
+  }
+  [data-theme="day"] #res-name-main {
+    text-shadow: 0 0 30px rgba(0,100,200,0.9), 0 0 70px rgba(0,100,200,0.4), 0 2px 10px rgba(0,0,0,0.7);
+  }
+  [data-theme="day"] #res-name-sub { color: rgba(0,80,160,0.95); text-shadow: none; }
+  [data-theme="day"] select#div-filter { color: var(--text); }
 
   html, body {
     height: 100%;
@@ -152,6 +220,46 @@
     0%,100% { opacity: 1; }
     50%      { opacity: 0.2; }
   }
+
+  /* ══════════════════════════════════════════════
+     DAY / NIGHT MODE BADGE
+  ══════════════════════════════════════════════ */
+  #mode-badge {
+    display: flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 20px;
+    border: 1px solid var(--border2);
+    background: rgba(5,12,23,0.5);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 8px; letter-spacing: 0.10em; text-transform: uppercase;
+    color: var(--text); white-space: nowrap;
+    transition: all 0.4s ease;
+    cursor: pointer; user-select: none; flex-shrink: 0;
+  }
+  #mode-badge:hover { border-color: var(--accent); box-shadow: 0 0 8px rgba(0,200,255,0.2); }
+  #mode-badge .mode-icon { font-size: 12px; line-height: 1; }
+  #mode-badge .mode-label { font-weight: 700; color: var(--accent); }
+  #mode-badge .mode-timer { color: var(--muted); font-size: 7px; margin-left: 1px; }
+
+  [data-theme="day"] #mode-badge {
+    background: rgba(220,240,255,0.7);
+    border-color: rgba(0,100,200,0.35);
+    color: #0d2240;
+  }
+  [data-theme="day"] #mode-badge .mode-label { color: var(--accent); }
+  [data-theme="night"] #mode-badge {
+    border-color: var(--accent);
+    background: rgba(0,200,255,0.07);
+    box-shadow: 0 0 8px rgba(0,200,255,0.15);
+  }
+
+  /* Flash overlay on mode transition */
+  #mode-transition-flash {
+    position: fixed; inset: 0; z-index: 9990;
+    pointer-events: none; opacity: 0;
+    background: white;
+    transition: opacity 0.3s ease;
+  }
+  #mode-transition-flash.flashing { opacity: 0.15; }
 
   /* ── MAP ── */
   #map {
@@ -541,7 +649,16 @@
     <div class="status-dot" id="status-dot"></div>
     <span id="status-text">Synchronizing layers…</span>
   </div>
+
+  <div class="divider"></div>
+  <button id="mode-badge" title="Click to manually toggle Day/Night mode">
+    <span class="mode-icon" id="mode-icon">🌙</span>
+    <span class="mode-label" id="mode-label">NIGHT</span>
+    <span class="mode-timer" id="mode-timer"></span>
+  </button>
 </div>
+
+<div id="mode-transition-flash"></div>
 
 <!-- Sidebar Toggle (mobile) -->
 <button id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle Panel">&#9776;</button>
@@ -648,7 +765,14 @@ const miniMap = L.map('location-overview-map', {
   zoomControl: false, attributionControl: false, dragging: false, touchZoom: false,
   doubleClickZoom: false, scrollWheelZoom: false
 }).setView([7.87, 80.7], 6.5);
-L.tileLayer(BASEMAPS.dark).addTo(miniMap);
+let miniBaseLayer = L.tileLayer(BASEMAPS.dark).addTo(miniMap);
+// Expose for day/night engine
+window._miniMapInstance = miniMap;
+window._getMiniBaseLayer = () => miniBaseLayer;
+window._setMiniBaseLayer = (url) => {
+  miniMap.removeLayer(miniBaseLayer);
+  miniBaseLayer = L.tileLayer(url, { maxZoom: 10 }).addTo(miniMap);
+};
 
 const miniMapBoundsBox = L.rectangle([[0,0],[0,0]], {color: "#ff3b3b", weight: 1.5, fillOpacity: 0.08}).addTo(miniMap);
 map.on('move', () => { miniMapBoundsBox.setBounds(map.getBounds()); });
@@ -1050,6 +1174,124 @@ function initWithRetry() {
   });
 }
 initWithRetry();
+
+/* ══════════════════════════════════════════════════════════
+   AUTO DAY / NIGHT MODE ENGINE
+   Day  = 06:00–18:00 local time  →  OSM basemap · light UI
+   Night= 18:00–06:00 local time  →  CartoDB Dark · cyber UI
+   Auto-checks every 60 s; badge shows countdown.
+   Click badge to manually override for 2 hours.
+══════════════════════════════════════════════════════════ */
+(function() {
+  const DAY_START = 6;   // 06:00 local
+  const DAY_END   = 18;  // 18:00 local
+
+  const BM_NIGHT = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  const BM_DAY   = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+  let currentMode = null;
+  let manualMode  = null;
+
+  function isDay() {
+    const h = new Date().getHours();
+    return h >= DAY_START && h < DAY_END;
+  }
+
+  function minutesUntilSwitch() {
+    const now = new Date();
+    const tot = now.getHours() * 60 + now.getMinutes();
+    const ds  = DAY_START * 60, de = DAY_END * 60;
+    if (tot >= ds && tot < de)  return de - tot;
+    if (tot >= de)              return 24 * 60 - tot + ds;
+    return ds - tot;
+  }
+
+  function applyMode(mode, force) {
+    if (!force && mode === currentMode) return;
+    currentMode = mode;
+
+    const root  = document.documentElement;
+    const flash = document.getElementById('mode-transition-flash');
+    const icon  = document.getElementById('mode-icon');
+    const lbl   = document.getElementById('mode-label');
+    const badge = document.getElementById('mode-badge');
+
+    // Transition flash visible on LED wall
+    if (flash) { flash.classList.add('flashing'); setTimeout(() => flash.classList.remove('flashing'), 400); }
+
+    if (mode === 'day') {
+      root.setAttribute('data-theme', 'day');
+      if (icon)  icon.textContent = '☀️';
+      if (lbl)   lbl.textContent  = 'DAY';
+      if (badge) badge.title = 'DAY mode (OSM) — click to force NIGHT';
+
+      // Switch main basemap to OSM
+      map.removeLayer(baseLayer);
+      baseLayer = L.tileLayer(BM_DAY, { attribution: '© OpenStreetMap contributors' });
+      baseLayer.addTo(map); baseLayer.bringToBack();
+
+      // Update basemap button state
+      document.querySelectorAll('.bm-btn').forEach(b => b.classList.remove('active'));
+      const osmBtn = [...document.querySelectorAll('.bm-btn')].find(b => b.textContent.trim() === 'OSM');
+      if (osmBtn) osmBtn.classList.add('active');
+
+      // Sync mini-map
+      if (window._setMiniBaseLayer) window._setMiniBaseLayer(BM_DAY);
+
+    } else {
+      root.setAttribute('data-theme', 'night');
+      if (icon)  icon.textContent = '🌙';
+      if (lbl)   lbl.textContent  = 'NIGHT';
+      if (badge) badge.title = 'NIGHT mode (Dark) — click to force DAY';
+
+      // Switch main basemap to CartoDB Dark
+      map.removeLayer(baseLayer);
+      baseLayer = L.tileLayer(BM_NIGHT, { attribution: '© OpenStreetMap | © CARTO', subdomains: 'abcd' });
+      baseLayer.addTo(map); baseLayer.bringToBack();
+
+      // Update basemap button state
+      document.querySelectorAll('.bm-btn').forEach(b => b.classList.remove('active'));
+      const darkBtn = [...document.querySelectorAll('.bm-btn')].find(b => b.textContent.trim() === 'Dark');
+      if (darkBtn) darkBtn.classList.add('active');
+
+      // Sync mini-map
+      if (window._setMiniBaseLayer) window._setMiniBaseLayer(BM_NIGHT);
+    }
+  }
+
+  function updateBadgeTimer() {
+    const el = document.getElementById('mode-timer');
+    if (!el) return;
+    if (manualMode) { el.textContent = '(manual)'; return; }
+    const m  = minutesUntilSwitch();
+    const hh = String(Math.floor(m / 60)).padStart(2, '0');
+    const mm = String(m % 60).padStart(2, '0');
+    el.textContent = `→ ${hh}:${mm}`;
+  }
+
+  function tick() {
+    const target = manualMode || (isDay() ? 'day' : 'night');
+    applyMode(target, false);
+    updateBadgeTimer();
+  }
+
+  // Manual toggle on badge click
+  const badge = document.getElementById('mode-badge');
+  if (badge) {
+    badge.addEventListener('click', () => {
+      manualMode = (currentMode === 'day') ? 'night' : 'day';
+      applyMode(manualMode, true);
+      updateBadgeTimer();
+      // Auto-release manual lock after 2 hours
+      setTimeout(() => { manualMode = null; tick(); }, 2 * 60 * 60 * 1000);
+    });
+  }
+
+  // Initial run + 60-second auto-check
+  tick();
+  setInterval(tick, 60000);
+  setInterval(updateBadgeTimer, 30000);
+})();
 </script>
 </body>
 </html>
